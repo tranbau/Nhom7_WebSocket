@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Socket.IO chat</title>
+    <!-- <link rel="stylesheet" href="./styles.css" /> -->
+  </head>
+  <body>
+    <div id="container">
+      <h1 id="yourname"></h1>
+      <div class="chat-wrapper">
+        <h3>Public chat</h3>
+        <ul id="messages"></ul>
+        <form id="form" action="">
+          <input id="input" autocomplete="off" />
+          <button>Send</button>
+        </form>
+      </div>
+      <div id="online-users-wrapper">
+        <h1>Online users</h1>
+        <ul id="online-users"></ul>
+      </div>
+
+      <div id="private-chats-wrapper">
+        <h3>Private chats</h3>
+      </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+      var socket = io();
+
+      var messages = document.getElementById("messages");
+      var form = document.getElementById("form");
+      var input = document.getElementById("input");
+      const nameDisplay = document.getElementById("yourname");
+      const onlineUsers = document.getElementById("online-users");
+      const privateChats = document.getElementById("private-chats-wrapper");
+      let myName = "";
+
+      form.addEventListener("submit", function (e) {
+        e.preventDefault();
+        if (input.value) {
+          socket.emit("sendMsg", input.value);
+          input.value = "";
+        }
+      });
+      //get username
+      socket.on("yourName", (name) => {
+        nameDisplay.innerText = `Your name: ${name}`;
+        myName = name;
+      });
+
+      //get online users list
+      socket.on("onlineUsers", (users) => {
+        onlineUsers.innerHTML = ``;
+        for (let user of users) {
+          if (user != myName) {
+            const item = document.createElement("li");
+            item.id = user;
+            item.innerHTML = `${user} <button id='${user}-btn' onclick='wantChat("${String(
+              user
+            )}")'>Chat</button>`;
+            onlineUsers.appendChild(item);
+          }
+        }
+      });
+
+      //get user left
+      socket.on("userLeft", (name) => {
+        const items = onlineUsers.querySelectorAll("li");
+        items.forEach((item) => {
+          if (item.id === name) {
+            item.remove();
+            return;
+          }
+        });
+      });
+
+      //get messages
+      socket.on("sendMsg", function (from, msg) {
+        var item = document.createElement("li");
+        item.textContent = `${from}: ${msg}`;
+        messages.appendChild(item);
+      });
+
+      //send private chat command
+      const wantChat = (otherUser) => {
+        console.log(`Send cmd with user ${otherUser}`);
+        socket.emit("wantChat", myName, otherUser);
+      };
+
+      //recv private chat command result (to ensure the the other client online after click chat)
+      socket.on("wantChat", (result, to) => {
+        if (result === "Succesfully") {
+          var item = document.createElement("div");
+          item.id = `private-chat-${to}-wrapper`;
+          const newChat = `
+            <h4>Chat with ${to}</h4>
+            <ul id = 'private-chat-${to}-messages'></ul>
+            <input id="private-chat-${to}-input" autocomplete="off" />
+            <button id = 'private-chat-${to}-sendBtn'  onclick='privateMsg("${String(
+            to
+          )}")'>Send</button>
+            <button id = 'private-chat-${to}-stopBtn' onclick='stopChat("${String(
+            to
+          )}")'>Stop chat</button>
+         `;
+          item.innerHTML = newChat;
+          privateChats.appendChild(item);
+
+          //prevent send command again
+          const commandBtn = document.getElementById(`${to}-btn`);
+          commandBtn.disabled = true;
+        }
+      });
+
+      //recv private chat command from a client
+      socket.on("letChat", (from) => {
+        var item = document.createElement("div");
+        item.id = `private-chat-${from}-wrapper`;
+        const newChat = `
+          <h4>Chat with ${from}</h4>
+          <ul id = 'private-chat-${from}-messages'></ul>
+          <input id="private-chat-${from}-input" autocomplete="off" />
+          <button id = 'private-chat-${from}-sendBtn'  onclick='privateMsg("${String(
+          from
+        )}")'>Send</button>
+            <button id = 'private-chat-${from}-stopBtn' onclick='stopChat("${String(
+          from
+        )}")'>Stop chat</button>
+       `;
+        item.innerHTML = newChat;
+        privateChats.appendChild(item);
+
+        //prevent send command again
+        const commandBtn = document.getElementById(`${from}-btn`);
+        commandBtn.disabled = true;
+      });
+
+      //send  private chat message
+      const privateMsg = (otherUser) => {
+        const input = document.getElementById(
+          `private-chat-${otherUser}-input`
+        );
+        if (input && input.value) {
+          //display own message
+          const messages = document.getElementById(
+            `private-chat-${otherUser}-messages`
+          );
+          var item = document.createElement("li");
+          item.textContent = `${myName}: ${input.value}`;
+          messages.appendChild(item);
+          //send message
+          socket.emit("privateMsg", myName, otherUser, input.value);
+          input.value = "";
+        }
+      };
+
+      //recv  private chat message
+      socket.on("privateMsg", (from, msg) => {
+        const messages = document.getElementById(
+          `private-chat-${from}-messages`
+        );
+        var item = document.createElement("li");
+        item.textContent = `${from}: ${msg}`;
+        messages.appendChild(item);
+      });
+
+      //send private chat stop command
+      const stopChat = (otherUser) => {
+        //send command
+        socket.emit("stopChat", myName, otherUser);
+
+        //remove private chat
+        const chat = document.getElementById(
+          `private-chat-${otherUser}-wrapper`
+        );
+        if (chat) chat.remove();
+
+        //able chat button
+        const commandBtn = document.getElementById(`${otherUser}-btn`);
+        commandBtn.disabled = false;
+      };
+
+      //recv private chat stop command
+      socket.on("stopChat", (from) => {
+        //remove private chat
+        const chat = document.getElementById(`private-chat-${from}-wrapper`);
+        if (chat) chat.remove();
+
+        //able chat button
+        const commandBtn = document.getElementById(`${from}-btn`);
+        if (commandBtn) commandBtn.disabled = false;
+      });
+    </script>
+  </body>
+</html>

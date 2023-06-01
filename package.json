@@ -1,0 +1,14 @@
+{
+  "name": "realtime-chat",
+  "version": "0.0.1",
+  "description": "my first socket.io app",
+  "dependencies": {
+    "@faker-js/faker": "^8.0.2",
+    "express": "^4.17.1",
+    "nodemon": "^2.0.22",
+    "socket.io": "^4.1.2"
+  },
+  "scripts": {
+    "start": "nodemon index.js"
+  }
+}
